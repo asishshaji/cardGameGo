@@ -14,14 +14,14 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// App
+// App struct
 type App struct {
 	Router *mux.Router
 	Client *mongo.Client
 	DB     *mongo.Database
 }
 
-// Initialized app
+// Initialize function initializes the app
 func (a *App) Initialize(dbname string) {
 	connectionString := fmt.Sprintf("mongodb://localhost:27017/%s", dbname)
 
@@ -55,6 +55,8 @@ func (a *App) initializeRoutes() {
 
 func (a *App) createCard(rw http.ResponseWriter, r *http.Request) {
 
+	rw.Header().Set("Content-Type", "application/json")
+
 	var card models.Card
 
 	decoder := json.NewDecoder(r.Body)
@@ -65,10 +67,15 @@ func (a *App) createCard(rw http.ResponseWriter, r *http.Request) {
 
 	defer r.Body.Close()
 
-	_ = card.CreateCard(a.DB)
+	err := card.CreateCard(a.DB)
+
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 }
 
+// Run starts the server
 func (a *App) Run(addr string) {
 	log.Fatalln(http.ListenAndServe(addr, a.Router))
 }
