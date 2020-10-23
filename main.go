@@ -1,12 +1,11 @@
 package main
 
-import "fmt"
+var dbName string = "PitcherDB"
 
 func main() {
 
-	fmt.Println("Hey")
 	app := App{}
 
-	app.Initialize("test")
+	app.Initialize(dbName)
 	app.Run(":9090")
 }

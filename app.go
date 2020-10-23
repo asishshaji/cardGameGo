@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/asishshaji/go-voting-api/go/src/github.com/asishshaji/pitcherServer/models"
@@ -76,6 +79,38 @@ func (a *App) createCard(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Run starts the server
-func (a *App) Run(addr string) {
-	log.Fatalln(http.ListenAndServe(addr, a.Router))
+func (a *App) Run(port string) {
+
+	server := &http.Server{
+		Addr:    ":8080",
+		Handler: a.Router,
+	}
+
+	done := make(chan os.Signal, 1)
+
+	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("listen: %s\n", err)
+		}
+	}()
+
+	log.Print("Server Started")
+
+	// Until any cancellation signal is
+	// received the code is blocked
+	<-done
+	log.Print("Server Stopped")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer func() {
+		// extra handling here
+		cancel()
+	}()
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Fatalf("Server Shutdown Failed:%+v", err)
+	}
+	log.Print("Server Shutdown Gracefully")
 }
