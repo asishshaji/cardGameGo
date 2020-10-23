@@ -8,11 +8,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/asishshaji/go-voting-api/go/src/github.com/asishshaji/pitcherServer/models"
 	"github.com/gorilla/mux"
+
+	socketio "github.com/googollee/go-socket.io"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -26,6 +29,7 @@ type App struct {
 
 // Initialize function initializes the app
 func (a *App) Initialize(dbname string) {
+
 	connectionString := fmt.Sprintf("mongodb://localhost:27017/%s", dbname)
 
 	var err error
@@ -52,8 +56,43 @@ func (a *App) Initialize(dbname string) {
 
 }
 
+func (a *App) initializeSocket() *socketio.Server {
+
+	server, err := socketio.NewServer(nil)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	server.OnConnect("/", func(s socketio.Conn) error {
+		log.Println("Client connected " + s.ID())
+
+		s.Join(getRoomID())
+
+		return nil
+	})
+
+	go server.Serve()
+
+	return server
+}
+
+func getRoomID() string {
+	currentTime := time.Now().UnixNano()
+	roomID := strconv.Itoa(int(currentTime))
+	return roomID
+}
+
 func (a *App) initializeRoutes() {
+
+	socketHandler := a.initializeSocket()
+	a.Router.Handle("/socket.io/", socketHandler)
+
 	a.Router.HandleFunc("/card", a.createCard).Methods(http.MethodPost)
+
+	// Create end point for generating unique link for a user
+	// allow new users to join room via the link
+
 }
 
 func (a *App) createCard(rw http.ResponseWriter, r *http.Request) {
@@ -63,14 +102,17 @@ func (a *App) createCard(rw http.ResponseWriter, r *http.Request) {
 	var card models.Card
 
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&card); err != nil {
+	err := decoder.Decode(&card)
+
+	if err != nil {
+		log.Println(err)
 		http.Error(rw, "Error parsing card", http.StatusBadRequest)
 		return
 	}
 
 	defer r.Body.Close()
 
-	err := card.CreateCard(a.DB)
+	err = card.CreateCard(a.DB)
 
 	if err != nil {
 		log.Fatalln(err)
@@ -82,7 +124,7 @@ func (a *App) createCard(rw http.ResponseWriter, r *http.Request) {
 func (a *App) Run(port string) {
 
 	server := &http.Server{
-		Addr:    ":8080",
+		Addr:    port,
 		Handler: a.Router,
 	}
 
@@ -96,7 +138,7 @@ func (a *App) Run(port string) {
 		}
 	}()
 
-	log.Print("Server Started")
+	log.Printf("Server Started at PORT %v", server.Addr)
 
 	// Until any cancellation signal is
 	// received the code is blocked

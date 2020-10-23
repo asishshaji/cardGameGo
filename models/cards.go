@@ -10,7 +10,7 @@ import (
 
 // Card type
 type Card struct {
-	ID             primitive.ObjectID `bson:"_id"`
+	ID             primitive.ObjectID `json:"id" bson:"_id"`
 	IMDB           float32            `json:"imdbrating" bson:"imdb,omitempty"`
 	Rotten         float32            `json:"rottenrating" bson:"rotten,omitempty"`
 	StateAwards    int32              `json:"stateawards" bson:"stateawards,omitempty"`
