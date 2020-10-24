@@ -6,7 +6,14 @@ sio = socketio.Client()
 @sio.event
 def connect():
     print('Connection established')
-    sio.emit("myresponse","ASISH",namespace="/",callback=test)
+    # creates new room
+    sio.emit("hostCreateNewGame","ASISH",namespace="/")
+
+    sio.emit("joinRoom","1603522148213888116",namespace="/")
+
+    # get rooms
+    sio.emit("getRooms","ASISH",namespace="/")
+
 
 
 @sio.event

@@ -25,6 +25,7 @@ type App struct {
 	Router *mux.Router
 	Client *mongo.Client
 	DB     *mongo.Database
+	l      *log.Logger
 }
 
 // Initialize function initializes the app
@@ -37,14 +38,14 @@ func (a *App) Initialize(dbname string) {
 	a.Client, err = mongo.NewClient(options.Client().ApplyURI(connectionString))
 
 	if err != nil {
-		log.Fatal(err)
+		a.l.Fatal(err)
 	}
 
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	err = a.Client.Connect(ctx)
 
 	if err != nil {
-		log.Fatal(err)
+		a.l.Fatal(err)
 	}
 
 	a.DB = a.Client.Database(dbname)
@@ -68,34 +69,46 @@ type Room struct {
 	sockets []socketio.Conn
 }
 
-var rooms map[string]Room
-
 func (a *App) initializeRoutes() {
+	rooms := make(map[string]Room)
 
 	socketServer, err := socketio.NewServer(nil)
 
 	if err != nil {
-		log.Fatal(err)
+		a.l.Fatal(err)
 	}
 
 	socketServer.OnConnect("/", func(s socketio.Conn) error {
-		log.Println("New client connected " + s.ID())
+		a.l.Println("New client connected " + s.ID())
 		return nil
 	})
 
 	socketServer.OnEvent("/", "hostCreateNewGame", func(s socketio.Conn, msg string) {
+		a.l.Println("Creating new room")
 		room := Room{
 			id: getCurrentTimeInNano(),
 		}
 		rooms[room.id] = room
+		a.l.Println(room)
+
+		// s.Emit("RoomID", room.id)
 
 	})
 
-	socketServer.OnEvent("/", "myresponse", func(s socketio.Conn, msg string) {
+	socketServer.OnEvent("/", "joinRoom", func(s socketio.Conn, msg string) {
+		roomID := msg
+		room := rooms[roomID]
 
-		log.Println("het")
-		log.Println(msg)
+		connectionsLen := len(room.sockets)
+		if connectionsLen < 2 {
+			room.sockets = append(room.sockets, s)
+		}
 
+	})
+
+	socketServer.OnEvent("/", "getRooms", func(s socketio.Conn, msg string) {
+		a.l.Println(s.Rooms())
+		s.Emit("rooms", s.Rooms())
 	})
 
 	go socketServer.Serve()
@@ -124,7 +137,7 @@ func (a *App) createCard(rw http.ResponseWriter, r *http.Request) {
 	err := decoder.Decode(&card)
 
 	if err != nil {
-		log.Println(err)
+		a.l.Println(err)
 		http.Error(rw, "Error parsing card", http.StatusBadRequest)
 		return
 	}
@@ -134,7 +147,7 @@ func (a *App) createCard(rw http.ResponseWriter, r *http.Request) {
 	err = card.CreateCard(a.DB)
 
 	if err != nil {
-		log.Fatalln(err)
+		a.l.Fatalln(err)
 	}
 
 }
@@ -153,16 +166,16 @@ func (a *App) Run(port string) {
 
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("listen: %s\n", err)
+			a.l.Fatalf("listen: %s\n", err)
 		}
 	}()
 
-	log.Printf("Server Started at PORT %v", server.Addr)
+	a.l.Printf("Server Started at PORT %v", server.Addr)
 
 	// Until any cancellation signal is
 	// received the code is blocked
 	<-done
-	log.Print("Server Stopped")
+	a.l.Print("Server Stopped")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer func() {
@@ -171,7 +184,7 @@ func (a *App) Run(port string) {
 	}()
 
 	if err := server.Shutdown(ctx); err != nil {
-		log.Fatalf("Server Shutdown Failed:%+v", err)
+		a.l.Fatalf("Server Shutdown Failed:%+v", err)
 	}
-	log.Print("Server Shutdown Gracefully")
+	a.l.Print("Server Shutdown Gracefully")
 }
