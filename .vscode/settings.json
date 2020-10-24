@@ -1,4 +1,4 @@
 {
     "go.inferGopath": false,
-    "python.pythonPath": "client/env/share/python-wheels/wheel-0.30.0-py2.py3-none-any.whl"
+    "python.pythonPath": "client/env/bin/python3"
 }

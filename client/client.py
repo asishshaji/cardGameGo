@@ -2,18 +2,38 @@ import socketio
 
 sio = socketio.Client()
 
+
 @sio.event
 def connect():
-    print('connection established')
+    print('Connection established')
+    sio.emit("myresponse","ASISH",namespace="/",callback=test)
+
+
+@sio.event
+def msg(data):
+    print('message ', data)
+
 
 @sio.event
 def my_message(data):
     print('message received with ', data)
-    sio.emit('my response', {'response': 'my response'})
+    sio.emit('myresponse', {'response': 'my response'})
+
 
 @sio.event
 def disconnect():
-    print('disconnected from server')
+    print('Disconnected from server')
+
+def test():
+    print("jey")
+
 
 sio.connect('http://localhost:9090')
+
+
+sio.emit("hostCreateNewGame", {"hey": "as"},namespace="/")
+
+
 sio.wait()
+
+

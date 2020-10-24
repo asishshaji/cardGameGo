@@ -56,42 +56,61 @@ func (a *App) Initialize(dbname string) {
 
 }
 
-func (a *App) initializeSocket() *socketio.Server {
-
-	server, err := socketio.NewServer(nil)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	server.OnConnect("/", func(s socketio.Conn) error {
-		log.Println("Client connected " + s.ID())
-
-		s.Join(getRoomID())
-
-		return nil
-	})
-
-	go server.Serve()
-
-	return server
-}
-
-func getRoomID() string {
+func getCurrentTimeInNano() string {
 	currentTime := time.Now().UnixNano()
 	roomID := strconv.Itoa(int(currentTime))
 	return roomID
 }
 
+// Room for the game
+type Room struct {
+	id      string
+	sockets []socketio.Conn
+}
+
+var rooms map[string]Room
+
 func (a *App) initializeRoutes() {
 
-	socketHandler := a.initializeSocket()
-	a.Router.Handle("/socket.io/", socketHandler)
+	socketServer, err := socketio.NewServer(nil)
 
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	socketServer.OnConnect("/", func(s socketio.Conn) error {
+		log.Println("New client connected " + s.ID())
+		return nil
+	})
+
+	socketServer.OnEvent("/", "hostCreateNewGame", func(s socketio.Conn, msg string) {
+		room := Room{
+			id: getCurrentTimeInNano(),
+		}
+		rooms[room.id] = room
+
+	})
+
+	socketServer.OnEvent("/", "myresponse", func(s socketio.Conn, msg string) {
+
+		log.Println("het")
+		log.Println(msg)
+
+	})
+
+	go socketServer.Serve()
+
+	a.Router.Handle("/socket.io/", socketServer)
+
+	// creates new card
 	a.Router.HandleFunc("/card", a.createCard).Methods(http.MethodPost)
 
 	// Create end point for generating unique link for a user
 	// allow new users to join room via the link
+
+}
+
+func joinRoom(s socketio.Conn, room Room) {
 
 }
 
